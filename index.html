@@ -1,23 +1,309 @@
 <!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#10263d"><title>LogiScan | Conversor de Etiquetas</title>
-<style>:root{font-family:system-ui,-apple-system,sans-serif;color:#eaf2ff;background:#0b1726}*{box-sizing:border-box}body{margin:0}main{max-width:540px;margin:auto;padding:22px 16px 48px}h1{margin:0;font-size:29px}p{color:#b6c6d9;line-height:1.5}.tag{color:#5ee3c2;font-size:12px;font-weight:700;letter-spacing:.1em}.panel{background:#14283e;border:1px solid #29435e;border-radius:18px;padding:18px;margin-top:18px}button,.filebtn{background:#38d7ae;border:0;color:#082334;font-weight:750;border-radius:12px;padding:13px 15px;font-size:15px;cursor:pointer;display:inline-block}button.secondary,.filebtn{background:#253f59;color:#f3f7ff}button:disabled{opacity:.45}input[type=text]{width:100%;border:1px solid #52718e;background:#0a1b2e;color:white;border-radius:12px;padding:14px;font-size:18px;letter-spacing:.03em}#video{width:100%;border-radius:12px;background:#060e16;max-height:300px;object-fit:cover}#preview{width:100%;max-height:250px;object-fit:contain;display:none;margin-top:12px}#qrwrap{background:white;border-radius:14px;padding:20px;width:max-content;max-width:100%;margin:15px auto}#qrwrap canvas,#qrwrap img{display:block;max-width:100%}.actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}.muted{font-size:13px}#status{min-height:22px;color:#a8ddf1}#output{display:none}.hint{font-size:13px;color:#c1d0df}label{display:block;margin-bottom:8px;font-weight:650}input[type=file]{display:none}</style></head>
-<body><main><div class="tag">PROTÓTIPO • V1</div><h1>LogiScan <span aria-hidden="true">▥</span></h1><p>Leia o código de barras linear de uma etiqueta e gere um QR Code com o mesmo conteúdo.</p>
-<section class="panel"><h2>1. Capturar etiqueta</h2><p class="hint">A leitura é limitada a códigos de barras lineares; QR Codes presentes na etiqueta são ignorados.</p><video id="video" autoplay muted playsinline></video><div class="actions"><button id="start">Abrir câmera</button><button id="stop" class="secondary">Parar câmera</button><label class="filebtn" for="file">Escolher foto</label><input id="file" type="file" accept="image/*"></div><img id="preview" alt="Foto selecionada"><p id="status" role="status">Pronto para começar.</p></section>
-<section class="panel"><h2>2. Conferir código</h2><label for="value">Conteúdo do código de barras</label><input id="value" type="text" placeholder="Leia ou digite o código" autocomplete="off" autocapitalize="off" spellcheck="false"><p class="hint">Confira cada caractere antes de gerar o QR. Não acrescente espaços.</p><button id="generate">Gerar QR Code</button></section>
-<section class="panel" id="output"><h2>3. QR Code gerado</h2><div id="qrwrap"><div id="qr"></div></div><p id="shown" style="overflow-wrap:anywhere;text-align:center"></p><div class="actions"><button id="copy" class="secondary">Copiar conteúdo</button><button id="save" class="secondary">Salvar imagem PNG</button></div><p class="hint">Teste com dados fictícios. A leitura pelo coletor depende da configuração do sistema da empresa.</p></section>
-<p class="muted">Privacidade: esta versão processa a leitura no próprio navegador e não envia os códigos para um servidor. As bibliotecas são carregadas de uma CDN. A câmera exige HTTPS ou localhost.</p></main>
-<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script>
-const $=id=>document.getElementById(id);let reader=null,stream=null,active=false;
-const formats=['CODE_128','CODE_39','EAN_13','EAN_8','ITF','CODABAR','UPC_A','UPC_E'].map(n=>window.ZXing?.BarcodeFormat?.[n]).filter(v=>v!==undefined);
-function status(t){$('status').textContent=t}
-function getReader(){if(!window.ZXing)throw Error('Biblioteca de leitura não carregou. Verifique a internet.');const hints=new Map();hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,formats);return new ZXing.BrowserMultiFormatReader(hints,350)}
-function setCode(s){$('value').value=s;status('Código linear reconhecido. Confira o conteúdo.');stopCamera()}
-async function stopCamera(){active=false;try{reader?.reset()}catch(e){}if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}if($('video').srcObject){$('video').srcObject.getTracks().forEach(t=>t.stop());$('video').srcObject=null}}
-$('start').onclick=async()=>{await stopCamera();try{reader=getReader();active=true;status('Aponte para o código de barras linear e mantenha-o no centro.');await reader.decodeFromVideoDevice(null,$('video'),(result,err)=>{if(active&&result)setCode(result.getText())})}catch(e){status('Não foi possível abrir a câmera: '+e.message);await stopCamera()}};
-$('stop').onclick=()=>{stopCamera();status('Câmera parada.')};
-$('file').onchange=async e=>{const file=e.target.files?.[0];if(!file)return;await stopCamera();const url=URL.createObjectURL(file);$('preview').src=url;$('preview').style.display='block';status('Analisando foto...');try{reader=getReader();const result=await reader.decodeFromImageUrl(url);setCode(result.getText())}catch(err){status('Não foi possível reconhecer um código linear nesta foto. Tente outra foto ou digite o código.')}finally{reader?.reset();URL.revokeObjectURL(url);e.target.value=''}};
-$('generate').onclick=()=>{const value=$('value').value;if(!value||!value.trim()){alert('Digite ou leia um código primeiro.');return}if(!window.QRCode){alert('Biblioteca de QR Code indisponível. Verifique a internet.');return}if(value!==value.trim()&&!confirm('O código contém espaços no início ou no fim. Deseja mantê-los?'))return;$('qr').innerHTML='';try{new QRCode($('qr'),{text:value,width:256,height:256,correctLevel:QRCode.CorrectLevel.M});$('shown').textContent=value;$('output').style.display='block';$('output').scrollIntoView({behavior:'smooth'});}catch(e){alert('Não foi possível gerar o QR Code: '+e.message)}};
-$('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('shown').textContent);$('copy').textContent='Copiado!';setTimeout(()=>$('copy').textContent='Copiar conteúdo',1500)}catch(e){alert('Não foi possível copiar automaticamente.')}};
-$('save').onclick=()=>{const canvas=$('qr').querySelector('canvas');const img=$('qr').querySelector('img');const url=canvas?.toDataURL('image/png')||img?.src;if(!url)return;const a=document.createElement('a');a.href=url;a.download='logiscan-qr.png';a.click()};window.addEventListener('pagehide',stopCamera);
-</script></body></html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1726">
+  <title>LogiScan V2 | Leitor de Etiquetas</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; color: #edf6ff; background: #0b1726; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 570px; margin: auto; padding: 24px 16px 54px; }
+    h1 { margin: 3px 0 8px; font-size: 30px; }
+    h2 { margin-top: 0; font-size: 21px; }
+    p { line-height: 1.55; color: #c1d2e6; }
+    .tag { color: #52e2bd; font-size: 12px; font-weight: 800; letter-spacing: .12em; }
+    .panel { margin-top: 18px; background: #14283e; border: 1px solid #2c4968; border-radius: 17px; padding: 18px; }
+    button, .filebtn { border: 0; border-radius: 11px; background: #38d7ae; color: #092b30; padding: 13px 16px; font: 700 15px system-ui; cursor: pointer; }
+    button.secondary, .filebtn { background: #2b4863; color: #fff; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 13px; }
+    #video { display: block; width: 100%; background: #040b13; border-radius: 13px; min-height: 190px; max-height: 340px; object-fit: contain; }
+    #photoPreview { display: none; max-height: 260px; max-width: 100%; margin: 12px auto; border-radius: 12px; }
+    input[type="file"] { display: none; }
+    input[type="text"] { display: block; width: 100%; background: #081b30; color: white; border: 1px solid #6c8bab; border-radius: 11px; padding: 14px; font-size: 18px; }
+    label { display: block; font-weight: 700; margin-bottom: 9px; }
+    #status { padding: 12px; background: #0b2237; border-radius: 10px; min-height: 45px; color: #b8eaf7; font-size: 14px; }
+    #method, #debug { font-size: 12px; color: #b4c9dc; overflow-wrap: anywhere; }
+    #output { display: none; }
+    #qrBox { background: white; border-radius: 15px; padding: 20px; width: max-content; max-width: 100%; margin: 16px auto; }
+    #qrBox canvas, #qrBox img { display: block; max-width: 100%; }
+    #shown { overflow-wrap: anywhere; text-align: center; font-weight: 700; }
+    .hint { font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="tag">PROTÓTIPO • V2</div>
+    <h1>LogiScan ▥</h1>
+    <p>Leia <strong>códigos de barras lineares</strong> pelo Android e transforme o conteúdo em QR Code. QR Codes existentes nas etiquetas são ignorados pela leitura.</p>
+
+    <section class="panel">
+      <h2>1. Ler código de barras</h2>
+      <video id="video" muted autoplay playsinline></video>
+      <div class="actions">
+        <button id="start">Abrir câmera</button>
+        <button id="stop" class="secondary">Parar</button>
+        <label for="file" class="filebtn">Escolher foto</label>
+        <input id="file" type="file" accept="image/*">
+      </div>
+      <img id="photoPreview" alt="Imagem escolhida">
+      <p id="status" role="status" aria-live="polite">Pronto para começar.</p>
+      <div id="method">Leitor: aguardando câmera.</div>
+      <div id="debug"></div>
+      <p class="hint">Dica: use a câmera traseira, boa iluminação, mantenha as barras inteiras na imagem e aproxime/afaste lentamente até ficar nítido.</p>
+    </section>
+
+    <section class="panel">
+      <h2>2. Conferir o conteúdo</h2>
+      <label for="value">Número ou texto lido</label>
+      <input id="value" type="text" placeholder="Ler ou digitar manualmente" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <p class="hint">Confira os caracteres antes de gerar o QR Code.</p>
+      <button id="generate">Gerar QR Code</button>
+    </section>
+
+    <section id="output" class="panel">
+      <h2>3. QR Code</h2>
+      <div id="qrBox"><div id="qr"></div></div>
+      <p id="shown"></p>
+      <div class="actions">
+        <button id="copy" class="secondary">Copiar texto</button>
+        <button id="save" class="secondary">Salvar PNG</button>
+      </div>
+    </section>
+    <p class="hint">Privacidade: o reconhecimento e a geração acontecem no navegador; nenhuma imagem ou código é enviado por este aplicativo a um servidor. As bibliotecas são carregadas pela internet. Teste primeiro com etiquetas fictícias e use códigos da empresa apenas com autorização.</p>
+  </main>
+
+  <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script>
+    'use strict';
+    const $ = id => document.getElementById(id);
+    const linearFormats = [
+      'code_128', 'code_39', 'ean_13', 'ean_8',
+      'itf', 'codabar', 'upc_a', 'upc_e'
+    ];
+    let stream = null;
+    let reader = null;
+    let running = false;
+    let detector = null;
+    let frameId = null;
+    let lastDetect = 0;
+    let attempts = 0;
+    let session = 0;
+
+    function status(message) { $('status').textContent = message; }
+    function errorMessage(error) { return error?.message || String(error); }
+
+    function getZXingReader() {
+      if (!window.ZXing) return null;
+      const supported = linearFormats
+        .map(name => window.ZXing.BarcodeFormat[name.toUpperCase()])
+        .filter(value => value !== undefined);
+      const hints = new Map();
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, supported);
+      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+      return new ZXing.BrowserMultiFormatReader(hints, 400);
+    }
+
+    function foundCode(text) {
+      if (!running || !text) return;
+      $('value').value = text;
+      $('output').style.display = 'none';
+      status('✅ Código reconhecido! Confira os caracteres e toque em Gerar QR Code.');
+      if (navigator.vibrate) navigator.vibrate(100);
+      stopCamera(true);
+      $('value').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    async function stopCamera(keepStatus = false) {
+      running = false;
+      session++;
+      if (frameId !== null) cancelAnimationFrame(frameId);
+      frameId = null;
+      try { reader?.reset(); } catch (_) {}
+      reader = null;
+      if (stream) stream.getTracks().forEach(track => track.stop());
+      stream = null;
+      if ($('video').srcObject) {
+        $('video').srcObject.getTracks().forEach(track => track.stop());
+        $('video').srcObject = null;
+      }
+      detector = null;
+      if (!keepStatus) status('Câmera parada.');
+    }
+
+    async function scanWithNative(currentSession) {
+      if (!window.BarcodeDetector) return false;
+      try {
+        const supported = await BarcodeDetector.getSupportedFormats();
+        const desired = linearFormats.filter(format => supported.includes(format));
+        if (!desired.length || !running || currentSession !== session) return false;
+        detector = new BarcodeDetector({ formats: desired });
+        $('method').textContent = 'Leitor: Android nativo (' + desired.join(', ') + ').';
+        const scanLoop = async timestamp => {
+          if (!running || session !== currentSession) return;
+          if (timestamp - lastDetect > 210 && $('video').readyState >= 2) {
+            lastDetect = timestamp;
+            try {
+              const codes = await detector.detect($('video'));
+              if (!running || session !== currentSession) return;
+              const match = codes.find(code => desired.includes(code.format));
+              if (match?.rawValue) { foundCode(match.rawValue); return; }
+              attempts++;
+              if (attempts % 15 === 0) $('debug').textContent = 'Câmera funcionando. Procurando barras nítidas…';
+            } catch (e) { $('debug').textContent = 'Leitura nativa: ' + errorMessage(e); }
+          }
+          if (running && session === currentSession) frameId = requestAnimationFrame(scanLoop);
+        };
+        frameId = requestAnimationFrame(scanLoop);
+        return true;
+      } catch (e) {
+        $('debug').textContent = 'Leitor nativo indisponível: ' + errorMessage(e);
+        return false;
+      }
+    }
+
+    function scanWithZXing(currentSession) {
+      reader = getZXingReader();
+      if (!reader) {
+        $('method').textContent = 'Leitor indisponível: biblioteca ZXing não carregou.';
+        status('A câmera abriu, mas a biblioteca de leitura não carregou. Verifique sua internet.');
+        return false;
+      }
+      $('method').textContent = 'Leitor: ZXing (EAN, Code 128 e outros códigos lineares).';
+      // Lê diretamente do vídeo já aberto: não solicita uma segunda câmera.
+      Promise.resolve(reader.decodeFromVideoElementContinuously($('video'), (result, error) => {
+        if (!running || session !== currentSession) return;
+        if (result) foundCode(result.getText());
+        else if (error && !(error instanceof ZXing.NotFoundException) &&
+                 !(error instanceof ZXing.ChecksumException) &&
+                 !(error instanceof ZXing.FormatException)) {
+          $('debug').textContent = 'Diagnóstico do leitor: ' + errorMessage(error);
+        }
+      })).catch(error => {
+        if (running && session === currentSession) status('Erro na leitura: ' + errorMessage(error));
+      });
+      return true;
+    }
+
+    async function startCamera() {
+      await stopCamera(true);
+      const currentSession = session;
+      attempts = 0;
+      lastDetect = 0;
+      $('debug').textContent = '';
+      $('method').textContent = 'Leitor: iniciando…';
+      $('photoPreview').style.display = 'none';
+      if (!navigator.mediaDevices?.getUserMedia) {
+        status('Este navegador não permite câmera. Use Chrome no Android e endereço HTTPS.');
+        return;
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+        if (session !== currentSession) { stream.getTracks().forEach(track => track.stop()); return; }
+        $('video').srcObject = stream;
+        await $('video').play();
+        running = true;
+        status('Câmera ativa. Centralize o código de barras e mantenha o celular firme.');
+        const nativeStarted = await scanWithNative(currentSession);
+        if (!running || currentSession !== session) return;
+        if (!nativeStarted) scanWithZXing(currentSession);
+        else if (window.ZXing) {
+          // Como alternativa, o ZXing também tenta reconhecer códigos que a API nativa não encontra.
+          scanWithZXing(currentSession);
+          $('method').textContent = 'Leitor: Android nativo + ZXing (somente códigos lineares).';
+        }
+      } catch (e) {
+        status('Não foi possível iniciar: ' + errorMessage(e));
+        await stopCamera(true);
+      }
+    }
+
+    async function decodePhoto(file) {
+      if (!file) return;
+      await stopCamera(true);
+      $('debug').textContent = '';
+      $('method').textContent = 'Leitor: foto selecionada.';
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      status('Analisando a imagem…');
+      try {
+        img.src = url;
+        await img.decode();
+        $('photoPreview').src = url;
+        $('photoPreview').style.display = 'block';
+        let value = null;
+        if (window.BarcodeDetector) {
+          const supported = await BarcodeDetector.getSupportedFormats();
+          const formats = linearFormats.filter(x => supported.includes(x));
+          if (formats.length) {
+            try {
+              const found = await new BarcodeDetector({ formats }).detect(img);
+              value = found.find(code => formats.includes(code.format))?.rawValue || null;
+            } catch (nativeError) {
+              $('debug').textContent = 'Leitor nativo na foto: ' + errorMessage(nativeError);
+            }
+          }
+        }
+        if (!value) {
+          const photoReader = getZXingReader();
+          if (!photoReader) throw Error('A biblioteca ZXing não carregou.');
+          try {
+            const result = await photoReader.decodeFromImageElement(img);
+            value = result.getText();
+          } finally { photoReader.reset(); }
+        }
+        $('value').value = value;
+        $('output').style.display = 'none';
+        status('✅ Código reconhecido pela foto! Confira os caracteres.');
+      } catch (e) {
+        status('Não foi possível reconhecer código de barras na foto. Tente mais perto e com boa luz.');
+        $('debug').textContent = 'Detalhe: ' + errorMessage(e);
+      } finally {
+        URL.revokeObjectURL(url);
+        $('file').value = '';
+      }
+    }
+
+    function generateQR() {
+      const value = $('value').value;
+      if (!value) { status('Digite ou leia um código primeiro.'); return; }
+      if (!window.QRCode) { status('Biblioteca de QR Code não carregou. Verifique sua internet.'); return; }
+      if (value !== value.trim() && !confirm('O código tem espaços no começo ou no fim. Deseja mantê-los?')) return;
+      try {
+        $('qr').replaceChildren();
+        new QRCode($('qr'), { text: value, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M });
+        $('shown').textContent = value;
+        $('output').style.display = 'block';
+        $('output').scrollIntoView({ behavior: 'smooth' });
+        status('QR Code gerado com o mesmo conteúdo, sem alterações.');
+      } catch (e) { status('Falha ao gerar QR: ' + errorMessage(e)); }
+    }
+
+    $('start').addEventListener('click', startCamera);
+    $('stop').addEventListener('click', () => stopCamera());
+    $('file').addEventListener('change', e => decodePhoto(e.target.files[0]));
+    $('generate').addEventListener('click', generateQR);
+    $('copy').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText($('shown').textContent); status('Texto copiado!'); }
+      catch (e) { status('Não foi possível copiar: ' + errorMessage(e)); }
+    });
+    $('save').addEventListener('click', () => {
+      const canvas = $('qr').querySelector('canvas');
+      const img = $('qr').querySelector('img');
+      const url = canvas?.toDataURL('image/png') || img?.src;
+      if (!url) { status('Gere um QR antes de salvar.'); return; }
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'logiscan-qr.png';
+      a.click();
+    });
+    window.addEventListener('pagehide', () => stopCamera(true));
+  </script>
+</body>
+</html>
